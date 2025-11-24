@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cartoon Motorcycle Dash! (Updated)</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Base Body and Font Styles */
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: #E0F7FA; 
+            text-align: center;
+            color: #1e293b; 
+            margin: 0;
+            padding-top: 20px;
+        }
+        h1, h2, #scoreDisplay, #highScoreDisplay, #currentSpeedDisplay {
+            font-family: 'Fredoka One', cursive;
+        }
+
+        /* --- Custom Professional Cartoon Shadows --- */
+        .cartoon-shadow {
+            border: 3px solid #1e293b; 
+            box-shadow: 6px 6px 0px #334155;
+            transition: all 0.2s ease-in-out;
+        }
+        .cartoon-shadow:hover {
+            box-shadow: 8px 8px 0px #334155;
+            transform: translate(-2px, -2px); 
+        }
+
+        /* Game Canvas Style */
+        #gameCanvas {
+            background-color: #888; 
+            border: 5px solid #1e293b; 
+            display: block;
+            margin: 10px auto; /* Reduced margin */
+        }
+        
+        /* Score Display Container */
+        #scoreContainer {
+            width: 400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 15px;
+            background-color: #FFEB3B; 
+            border-radius: 10px;
+            border: 3px solid #1e293b;
+            box-shadow: 4px 4px 0px #334155;
+            font-size: 0.9em;
+        }
+
+        /* Speed Control Container */
+        #controlContainer {
+            width: 400px;
+            margin: 15px auto 20px auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background-color: #A8A29E; /* Gray background */
+            border-radius: 10px;
+            border: 3px solid #1e293b;
+            box-shadow: 4px 4px 0px #334155;
+        }
+        
+        /* Game Over Screen (Style maintained) */
+        #gameOverScreen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #FFC0CB; 
+            color: #1e293b;
+            padding: 40px 60px;
+            border-radius: 20px;
+            border: 4px solid #1e293b;
+            box-shadow: 10px 10px 0px #334155;
+            display: none;
+            z-index: 10;
+        }
+        #gameOverScreen h2 {
+            font-size: 3em;
+            margin-bottom: 10px;
+            color: #DC2626; 
+        }
+        
+        /* Button Style */
+        button {
+            background-color: #00FF00; 
+            color: #1e293b;
+            font-family: 'Fredoka One', cursive;
+            font-size: 16px;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 0 5px;
+            border: 3px solid #1e293b;
+            box-shadow: 3px 3px 0px #334155; 
+            transition: all 0.1s ease-in-out;
+        }
+        button:active {
+            box-shadow: 1px 1px 0px #334155;
+            transform: translate(2px, 2px);
+        }
+        
+        /* Specific Button Colors */
+        .speed-btn-up {
+            background-color: #4CAF50; /* Green for Up */
+            color: white;
+        }
+        .speed-btn-down {
+            background-color: #F44336; /* Red for Down */
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <h1 style="color:#0EA5E9; font-size:3em;">🏍️ BIKE RACEING </h1>
+    
+    <div id="scoreContainer">
+        <div id="highScoreDisplay">HIGH SCORE: 0</div>
+        <div id="scoreDisplay">CURRENT SCORE: 0</div>
+    </div>
+    
+    <div id="controlContainer">
+        <button class="speed-btn-down" onclick="changeSpeed(-1)">SPEED DOWN 🐢</button>
+        <span id="currentSpeedDisplay" style="font-size: 1.2em;">SPEED: 9</span>
+        <button class="speed-btn-up" onclick="changeSpeed(1)">SPEED UP 🚀</button>
+    </div>
+
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    
+    <div id="gameOverScreen">
+        <h2>GAME OVER </h2>
+        <p style="font-size:1.5em;">Final Score: <span id="finalScore">0</span></p>
+        <p>Best Ride: <span id="bestRideDisplay">0</span></p>
+        <button onclick="startGame()">Ride Again </button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const finalScoreDisplay = document.getElementById('finalScore');
+        const bestRideDisplayElement = document.getElementById('bestRideDisplay');
+        const scoreDisplayElement = document.getElementById('scoreDisplay');
+        const highScoreDisplayElement = document.getElementById('highScoreDisplay');
+        const currentSpeedDisplay = document.getElementById('currentSpeedDisplay');
+        
+        // --- GAME VARIABLES ---
+        let score = 0;
+        let gameActive = true;
+        
+        let highScore = localStorage.getItem('racingHighScore') ? parseInt(localStorage.getItem('racingHighScore')) : 0;
+        
+        // Adjustable Speed Variables
+        let gameScrollSpeed = 9; // Initial speed
+        const MIN_SPEED = 3;
+        const MAX_SPEED = 15;
+
+        // Road line variables
+        const roadLine = { width: 6, height: 60, gap: 40, y: 0 };
+        // Lanes now include the center line position for obstacles
+        const obstacleSpawnPoints = [50, 150, 200, 250, 350]; // Added 200 (center)
+        
+        // Player (Motorcycle)
+        const player = {
+            width: 20, 
+            height: 40,
+            x: canvas.width / 2 - 10,
+            y: canvas.height - 70,
+            speed: 15 // Lateral movement speed
+        };
+
+        // Obstacles (Enemy Motorcycles)
+        let obstacles = [];
+        const baseObstacleSpawnRate = 70; // Base rate
+        let frameCount = 0;
+
+        // --- SPEED CONTROL FUNCTION (New Feature) ---
+        window.changeSpeed = function(direction) {
+            if (!gameActive) return;
+
+            // Increase or decrease speed based on direction (1 or -1)
+            gameScrollSpeed = Math.min(MAX_SPEED, Math.max(MIN_SPEED, gameScrollSpeed + direction * 2));
+            
+            // Update the display text
+            currentSpeedDisplay.textContent = `SPEED: ${gameScrollSpeed}`;
+        }
+
+
+        // --- DRAWING FUNCTIONS ---
+
+        /** Draws the player motorcycle. */
+        function drawPlayer() {
+            ctx.fillStyle = '#10B981'; // Tailwind Green-500
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+            ctx.fillStyle = 'black';
+            ctx.fillRect(player.x, player.y - 5, player.width, 5); 
+        }
+
+        /** Draws the scrolling road and lane lines. */
+        function drawRoad() {
+            // Scroll the road lines based on current speed
+            roadLine.y += gameScrollSpeed;
+            if (roadLine.y >= roadLine.height + roadLine.gap) {
+                roadLine.y = 0;
+            }
+
+            ctx.fillStyle = 'yellow'; 
+            
+            // Loop to draw center lane lines
+            for (let i = -roadLine.height; i < canvas.height; i += roadLine.height + roadLine.gap) {
+                let yPos = i + roadLine.y;
+                // Draw center lane line
+                ctx.fillRect(canvas.width / 2 - roadLine.width / 2, yPos, roadLine.width, roadLine.height);
+            }
+        }
+
+        /** Draws the enemy motorcycles (obstacles). */
+        function drawObstacles() {
+            ctx.fillStyle = '#EC4899'; // Tailwind Pink-500
+            for (let i = 0; i < obstacles.length; i++) {
+                let obs = obstacles[i];
+                // Move the obstacle down the screen based on current speed
+                obs.y += gameScrollSpeed; 
+                ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+            }
+
+            obstacles = obstacles.filter(obs => obs.y < canvas.height);
+        }
+
+        /** Spawns a new enemy motorcycle at a random lane, including the center line. */
+        function spawnObstacle() {
+            // Select a random lane position from the updated list
+            const randomLaneIndex = Math.floor(Math.random() * obstacleSpawnPoints.length);
+            const obsX = obstacleSpawnPoints[randomLaneIndex] - 10; // Center the obstacle 
+            
+            // Create a new narrow obstacle (enemy bike)
+            const newObstacle = {
+                x: obsX,
+                y: -50, 
+                width: 20, 
+                height: 40
+            };
+            obstacles.push(newObstacle);
+        }
+
+        /** Checks for collision. */
+        function checkCollision() {
+            for (let i = 0; i < obstacles.length; i++) {
+                let obs = obstacles[i];
+                if (
+                    player.x < obs.x + obs.width &&
+                    player.x + player.width > obs.x &&
+                    player.y < obs.y + obs.height &&
+                    player.y + player.height > obs.y
+                ) {
+                    gameOver();
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /** Ends the game and updates the scores. */
+        function gameOver() {
+            gameActive = false;
+            
+            if (score > highScore) {
+                highScore = Math.floor(score);
+                localStorage.setItem('racingHighScore', highScore);
+            }
+            
+            finalScoreDisplay.textContent = Math.floor(score);
+            bestRideDisplayElement.textContent = highScore;
+            gameOverScreen.style.display = 'block';
+            
+            highScoreDisplayElement.textContent = `HIGH SCORE: ${highScore}`;
+        }
+
+        // --- MAIN GAME LOOP ---
+
+        function gameLoop() {
+            if (!gameActive) return;
+
+            // 1. Update Game Logic
+            frameCount++;
+            // Score now scales with speed, so increasing speed increases score rate
+            score += gameScrollSpeed * 0.05; 
+
+            // Obstacle spawn rate now becomes faster as gameScrollSpeed increases
+            const currentSpawnRate = Math.max(20, baseObstacleSpawnRate - (gameScrollSpeed * 3));
+
+            if (frameCount % currentSpawnRate === 0) {
+                spawnObstacle();
+            }
+
+            // 2. Rendering
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawRoad();
+            drawObstacles();
+            drawPlayer();
+            
+            // Update Score Display
+            scoreDisplayElement.textContent = `CURRENT SCORE: ${Math.floor(score)}`;
+            currentSpeedDisplay.textContent = `SPEED: ${gameScrollSpeed}`; // Ensure speed is always visible
+
+            // 3. Collision Check
+            checkCollision();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // --- INPUT CONTROL (Lateral Movement) ---
+        document.addEventListener('keydown', (event) => {
+            if (!gameActive) return;
+            
+            if (event.key === 'ArrowLeft') {
+                player.x -= player.speed;
+                if (player.x < 0) player.x = 0; 
+
+            } else if (event.key === 'ArrowRight') {
+                player.x += player.speed;
+                if (player.x > canvas.width - player.width) player.x = canvas.width - player.width;
+            }
+        });
+
+        // --- GAME START & RESET ---
+        function startGame() {
+            score = 0;
+            gameActive = true;
+            obstacles = [];
+            roadLine.y = 0;
+            player.x = canvas.width / 2 - 10; 
+            
+            // Reset to default speed on start
+            gameScrollSpeed = 3; 
+            currentSpeedDisplay.textContent = `SPEED: ${gameScrollSpeed}`;
+            
+            gameOverScreen.style.display = 'none';
+            highScoreDisplayElement.textContent = `HIGH SCORE: ${highScore}`;
+
+            gameLoop();
+        }
+
+        // Initialize the game
+        startGame();
+    </script>
+</body>
+</html>
